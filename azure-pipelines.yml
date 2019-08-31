@@ -78,7 +78,7 @@ steps:
 
 - task: AzureCLI@1
   inputs:
-    connectedServiceNameARM: ''
+    connectedServiceNameARM: 'hellowolrd17'
     scriptLocation: 'inlineScript'
     inlineScript: |
       az container delete --resource-group $(resourceGroup) --name $(containerName) --yes
