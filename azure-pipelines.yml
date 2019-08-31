@@ -19,7 +19,68 @@ steps:
 - script: echo Hello, world!
   displayName: 'Run a one-line script'
 
-- script: |
-    echo Add other tasks to build, test, and deploy your project.
-    echo See https://aka.ms/yaml
-  displayName: 'Run a multi-line script'
+- task: Maven@3
+  inputs:
+    mavenPomFile: 'pom.xml'
+    javaHomeOption: 'JDKVersion'
+    jdkVersionOption: '1.8'
+    jdkArchitectureOption: 'x64'
+    publishJUnitResults: true
+    testResultsFiles: '**/surefire-reports/TEST-*.xml'
+    goals: 'package'
+    
+
+- task: PowerShell@2
+  inputs:
+    targetType: 'inline'
+    script: |
+      [xml]$pomXml = Get-Content .\pom.xml
+      $version=$pomXml.project.version
+      Write-Host "##vso[task.setvariable variable=version]$version"
+
+- task: Maven@3
+  inputs:
+    mavenPomFile: 'pom.xml'
+    javaHomeOption: 'JDKVersion'
+    jdkVersionOption: '1.8'
+    jdkArchitectureOption: 'x64'
+    publishJUnitResults: true
+    testResultsFiles: '**/surefire-reports/TEST-*.xml'
+    goals: 'package'
+    
+
+- task: PowerShell@2
+  inputs:
+    targetType: 'inline'
+    script: |
+      [xml]$pomXml = Get-Content .\pom.xml
+      $version=$pomXml.project.version
+      Write-Host "##vso[task.setvariable variable=version]$version"
+
+
+- task: Docker@2
+  displayName: Login to Docker Hub
+  inputs:
+    command: login
+    containerRegistry: 
+
+
+
+- task: Docker@2
+  displayName: Build and Push
+  inputs:
+    command: buildAndPush
+    repository: $(imageName)
+    tags: |
+      $(version)
+
+
+
+- task: AzureCLI@1
+  inputs:
+    connectedServiceNameARM: ''
+    scriptLocation: 'inlineScript'
+    inlineScript: |
+      az container delete --resource-group $(resourceGroup) --name $(containerName) --yes
+      az container create --resource-group $(resourceGroup) --name $(containerName) --image $(imageName):$(version) --dns-name-label $(dnsName) --ports 8080
+      az container show --resource-group $(resourceGroup) --name $(containerName) --query "{FQDN:ipAddress.fqdn,ProvisioningState:provisioningState}" --out table
